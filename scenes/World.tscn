@@ -1,8 +1,128 @@
-[gd_scene load_steps=4 format=2]
+[gd_scene load_steps=15 format=2]
 
 [ext_resource path="res://scripts/VoxelCell.gd" type="Script" id=1]
 
-[sub_resource type="ShaderMaterial" id=1]
+[sub_resource type="VisualShaderNodeInput" id=3]
+input_name = "inv_projection"
+
+[sub_resource type="VisualShaderNodeTransformVecMult" id=4]
+
+[sub_resource type="VisualShaderNodeDotProduct" id=5]
+
+[sub_resource type="VisualShaderNodeInput" id=6]
+input_name = "normal"
+
+[sub_resource type="VisualShaderNodeVec3Constant" id=7]
+constant = Vector3( 0, -1, 0 )
+
+[sub_resource type="VisualShaderNodeVectorInterp" id=8]
+
+[sub_resource type="VisualShaderNodeColorConstant" id=9]
+constant = Color( 1, 0, 0, 1 )
+
+[sub_resource type="VisualShaderNodeColorConstant" id=10]
+constant = Color( 0.0429688, 0, 1, 1 )
+
+[sub_resource type="VisualShaderNodeScalarOp" id=11]
+default_input_values = [ 0, 0.0, 1, 1.0 ]
+
+[sub_resource type="VisualShaderNodeScalarOp" id=12]
+default_input_values = [ 0, 0.0, 1, 2.0 ]
+operator = 3
+
+[sub_resource type="VisualShader" id=13]
+code = "shader_type spatial;
+
+
+
+void vertex() {
+// Output:0
+
+}
+
+void fragment() {
+// Color:6
+	vec3 n_out6p0;
+	float n_out6p1;
+	n_out6p0 = vec3(1.000000,0.000000,0.000000);
+	n_out6p1 = 1.000000;
+
+// Color:7
+	vec3 n_out7p0;
+	float n_out7p1;
+	n_out7p0 = vec3(0.042969,0.000000,1.000000);
+	n_out7p1 = 1.000000;
+
+// Input:10
+	mat4 n_out10p0;
+	n_out10p0 = INV_PROJECTION_MATRIX;
+
+// Input:3
+	vec3 n_out3p0;
+	n_out3p0 = NORMAL;
+
+// TransformVectorMult:11
+	vec3 n_out11p0;
+	n_out11p0 = ( n_out10p0 * vec4(n_out3p0, 1.0) ).xyz;
+
+// Vector:4
+	vec3 n_out4p0;
+	n_out4p0 = vec3(0.000000,-1.000000,0.000000);
+
+// DotProduct:2
+	float n_out2p0;
+	n_out2p0 = dot( n_out11p0 , n_out4p0 );
+
+// ScalarOp:8
+	float n_in8p1 = 1.00000;
+	float n_out8p0;
+	n_out8p0 = n_out2p0 + n_in8p1;
+
+// ScalarOp:9
+	float n_in9p1 = 2.00000;
+	float n_out9p0;
+	n_out9p0 = n_out8p0 / n_in9p1;
+
+// VectorInterp:5
+	vec3 n_out5p0;
+	n_out5p0 = mix( n_out6p0 , n_out7p0 , vec3(n_out9p0) );
+
+// Output:0
+	ALBEDO = n_out5p0;
+
+}
+
+void light() {
+// Output:0
+
+}
+"
+graph_offset = Vector2( -343.08, -100.75 )
+nodes/fragment/0/position = Vector2( 1100, 20 )
+nodes/fragment/2/node = SubResource( 5 )
+nodes/fragment/2/position = Vector2( 224, 112 )
+nodes/fragment/3/node = SubResource( 6 )
+nodes/fragment/3/position = Vector2( -224, 96 )
+nodes/fragment/4/node = SubResource( 7 )
+nodes/fragment/4/position = Vector2( 16, 176 )
+nodes/fragment/5/node = SubResource( 8 )
+nodes/fragment/5/position = Vector2( 840, 220 )
+nodes/fragment/6/node = SubResource( 9 )
+nodes/fragment/6/position = Vector2( 660, 180 )
+nodes/fragment/7/node = SubResource( 10 )
+nodes/fragment/7/position = Vector2( 660, 300 )
+nodes/fragment/8/node = SubResource( 11 )
+nodes/fragment/8/position = Vector2( 416, 48 )
+nodes/fragment/9/node = SubResource( 12 )
+nodes/fragment/9/position = Vector2( 624, 0 )
+nodes/fragment/10/node = SubResource( 3 )
+nodes/fragment/10/position = Vector2( -240, -48 )
+nodes/fragment/11/node = SubResource( 4 )
+nodes/fragment/11/position = Vector2( 0, -16 )
+nodes/fragment/connections = PoolIntArray( 5, 0, 0, 0, 2, 0, 8, 0, 8, 0, 9, 0, 6, 0, 5, 0, 4, 0, 2, 1, 9, 0, 5, 2, 7, 0, 5, 1, 10, 0, 11, 0, 3, 0, 11, 1, 11, 0, 2, 0 )
+
+[sub_resource type="ShaderMaterial" id=14]
+shader = SubResource( 13 )
 
 [sub_resource type="ArrayMesh" id=2]
 surfaces/0 = {
@@ -21,7 +141,7 @@ surfaces/0 = {
 
 [node name="VoxelCell" type="MeshInstance" parent="."]
 transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.45162, 0 )
-material_override = SubResource( 1 )
+material_override = SubResource( 14 )
 mesh = SubResource( 2 )
 material/0 = null
 script = ExtResource( 1 )
@@ -29,5 +149,5 @@ size = 30
 period = 40.0
 
 [node name="Camera" type="Camera" parent="."]
-transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15.9765 )
+transform = Transform( 0.846941, 0.369785, -0.382034, 0, 0.718533, 0.695493, 0.531687, -0.589042, 0.608555, -16.9273, 18.6654, 24.0307 )
 current = true
