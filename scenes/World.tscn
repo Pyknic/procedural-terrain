@@ -1,8 +1,14 @@
-[gd_scene load_steps=4 format=2]
+[gd_scene load_steps=6 format=2]
 
 [ext_resource path="res://scripts/camera/camera_control.gd" type="Script" id=1]
 [ext_resource path="res://scripts/VoxelBlockManager.cs" type="Script" id=2]
 [ext_resource path="res://materials/grass.material" type="Material" id=3]
+[ext_resource path="res://scripts/camera/firstperson.gd" type="Script" id=4]
+
+[sub_resource type="CapsuleShape" id=1]
+margin = 0.238
+radius = 0.9
+height = 1.8
 
 [node name="World" type="Spatial"]
 
@@ -10,6 +16,7 @@
 transform = Transform( 0.846941, 0.369785, -0.382034, 0, 0.718533, 0.695493, 0.531687, -0.589042, 0.608555, -16.927, 7, 24.031 )
 current = true
 script = ExtResource( 1 )
+enabled = false
 max_speed = Vector3( 4, 4, 4 )
 forward_action = "move_forward"
 backward_action = "move_backward"
@@ -21,7 +28,7 @@ script = ExtResource( 2 )
 _minHorizontalBlocks = 5
 _maxHorizontalBlocks = 10
 _verticalBlocks = 5
-_observer = NodePath("../Camera")
+_observer = NodePath("../Player/Head/Camera")
 _noiseScale = 0.3
 _heightFactor = 0.05
 _toolRadius = 3.0
@@ -31,3 +38,32 @@ _material = ExtResource( 3 )
 [node name="Sun" type="DirectionalLight" parent="."]
 transform = Transform( 1, 0, 0, 0, 0.417928, 0.90848, 0, -0.90848, 0.417928, -1.37012, 10.144, 0 )
 shadow_enabled = true
+
+[node name="Player" type="KinematicBody" parent="."]
+transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.79886, 0 )
+input_ray_pickable = false
+script = ExtResource( 4 )
+mouse_sensitivity = 0.5
+MAX_SPEED = 10.0
+MAX_RUNNING_SPEED = 20.0
+MAX_SLOPE_ANGLE = 45.0
+MAX_STAIR_SLOPE = 35.0
+
+[node name="Capsule" type="CollisionShape" parent="Player"]
+transform = Transform( 1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, 0 )
+shape = SubResource( 1 )
+
+[node name="Head" type="Spatial" parent="Player"]
+transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.986, 0 )
+
+[node name="Camera" type="Camera" parent="Player/Head"]
+current = true
+
+[node name="Tail" type="RayCast" parent="Player"]
+transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.29134, 0 )
+enabled = true
+
+[node name="StairCatcher" type="RayCast" parent="Player"]
+transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.978599, -0.967584 )
+enabled = true
+cast_to = Vector3( 0, -0.4, 0 )

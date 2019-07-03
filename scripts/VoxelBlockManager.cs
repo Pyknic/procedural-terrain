@@ -61,7 +61,7 @@ public class VoxelBlockManager : Spatial
             var spaceState = GetWorld().GetDirectSpaceState();
 
             var camera = ((Camera)observerNode);
-            var from = camera.Translation;
+            var from = camera.GetGlobalTransform().origin;
             var cameraNormal = camera.ProjectRayNormal(GetViewport().Size / 2.0f);
 
             var result = spaceState.IntersectRay(from, from + cameraNormal * _maxToolDistance);
