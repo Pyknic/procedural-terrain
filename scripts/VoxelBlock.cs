@@ -48,13 +48,6 @@ public class VoxelBlock : MeshInstance
         _surfaceLevel = surfaceLevel;
     }
 
-    //public float GetDensity(BlockCoord cell)
-    //{
-    //    if (IsInside(cell)) return density[cell.y * WIDTH2 + cell.z * WIDTH + cell.x];
-    //    throw new ArgumentOutOfRangeException(
-    //        $"Given local coordinates ({cell.x}, {cell.y}, {cell.z}) is out of range.");
-    //}
-
     public void CreateFromAlgorithm()
     {
         var noise = new OpenSimplexNoise
@@ -66,27 +59,17 @@ public class VoxelBlock : MeshInstance
         };
 
         var blockPos = new Vector3(Translation);
-        density.AddDensity(localPos =>
+        density.EditDensity((localPos, oldDensity) =>
         {
             var pos = blockPos + localPos;
             return noise.GetNoise3dv(pos * _noiseScale) - pos.y * _heightFactor;
         });
     }
 
-    public void AddDensity(Vector3 localPosition, float radius, float strength)
+    public void Edit(Func<Vector3, float, float> tool)
     {
-        if (Mathf.Abs(radius) < Mathf.Epsilon) throw new ArgumentException("Radius is too small.");
-        if (Mathf.Abs(strength) < Mathf.Epsilon) return;
-
-        if (density.AddDensity(localPos =>
-        {
-            var distance = (localPos - localPosition).Length();
-            if (distance >= radius) return 0.0f;
-            return (radius - distance) / radius * strength;
-        }))
-        {
+        if (density.EditDensity(tool))
             RecreateGeometry();
-        }
     }
 
     private int surfaceId = -1;

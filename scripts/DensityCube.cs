@@ -18,6 +18,10 @@ public class DensityCube
         DENSITY_PLANE = DENSITY_ROW * DENSITY_ROW,
         DENSITY_CUBE  = DENSITY_PLANE * DENSITY_ROW;
 
+    private static readonly float
+        MIN_DENSITY = -0.1f,
+        MAX_DENSITY = 0.1f;
+
     private static readonly Vector3 OFFSET = new Vector3(
         -CELLS_ROW / 2.0f,
         -CELLS_ROW / 2.0f,
@@ -54,7 +58,7 @@ public class DensityCube
         density[CellToDensityIdx(cellIdx, corner)] = value;
     }
 
-    public bool AddDensity(Func<Vector3, float> localPosToDensity)
+    public bool EditDensity(Func<Vector3, float, float> editor)
     {
         bool changed = false;
         Vector3 pos = new Vector3();
@@ -63,13 +67,13 @@ public class DensityCube
             pos.x = OFFSET.x + i % DENSITY_ROW - 0.5f;
             pos.y = OFFSET.x + i / DENSITY_PLANE - 0.5f;
             pos.z = OFFSET.x + i / DENSITY_ROW % DENSITY_ROW - 0.5f;
-            float amount = localPosToDensity(pos);
-            if (Mathf.Abs(amount) > Mathf.Epsilon)
+            float newDensity = editor(pos, density[i]);
+            if (newDensity < MIN_DENSITY) newDensity = MIN_DENSITY;
+            if (newDensity > MAX_DENSITY) newDensity = MAX_DENSITY;
+            if (Mathf.Abs(newDensity - density[i]) > Mathf.Epsilon)
             {
                 changed = true;
-                density[i] += amount;
-                if (density[i] < -1.0f) density[i] = -1.0f;
-                if (density[i] >  1.0f) density[i] =  1.0f;
+                density[i] = newDensity;
             }
         }
         return changed;

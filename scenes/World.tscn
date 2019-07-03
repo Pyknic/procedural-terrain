@@ -32,7 +32,7 @@ _observer = NodePath("../Player/Head/Camera")
 _noiseScale = 0.3
 _heightFactor = 0.05
 _toolRadius = 3.0
-_toolStrength = -0.5
+_toolStrength = 0.5
 _material = ExtResource( 3 )
 
 [node name="Sun" type="DirectionalLight" parent="."]

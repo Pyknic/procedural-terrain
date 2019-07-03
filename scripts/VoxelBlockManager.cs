@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -21,6 +22,8 @@ public class VoxelBlockManager : Spatial
     [Export] float _toolStrength    = 0.1f;
 
     [Export] Material _material;
+
+    private Plane? flattenPlane;
 
     public VoxelBlockManager()
     {
@@ -51,6 +54,8 @@ public class VoxelBlockManager : Spatial
 
     public override void _PhysicsProcess(float delta)
     {
+        var flatten = Input.IsActionPressed("flatten");
+
         var strength = _toolStrength;
         if (Input.IsMouseButtonPressed((int)ButtonList.Right))
             strength = -strength;
@@ -69,14 +74,43 @@ public class VoxelBlockManager : Spatial
             {
                 var clickPos = (Vector3)result["position"];
                 var addPos = clickPos + cameraNormal.Inverse().Normalized();
-                AddDensity(addPos, _toolRadius, strength * delta);
+                if (flatten)
+                {
+                    if (flattenPlane == null)
+                    {
+                        var collisionNormal = (Vector3)result["normal"];
+                        flattenPlane = new Plane(collisionNormal, new Plane(collisionNormal, 0.0f).DistanceTo(clickPos));
+                    }
+
+                    EditDensity(addPos, _toolRadius, (worldPos, oldDensity) =>
+                    {
+                        var distance = (worldPos - clickPos).Length();
+                        if (distance >= _toolRadius) return oldDensity;
+                        var amount = (_toolRadius - distance) / _toolRadius * (strength * delta);
+                        if (flattenPlane.Value.IsPointOver(worldPos))
+                            amount = -amount;
+
+                        return oldDensity + amount;
+                    });
+                }
+                else EditDensity(addPos, _toolRadius, (worldPos, oldDensity) =>
+                {
+                    var distance = (worldPos - clickPos).Length();
+                    if (distance >= _toolRadius) return oldDensity;
+                    return oldDensity + (_toolRadius - distance) / _toolRadius * (strength * delta);
+                });
             }
+        }
+        else
+        {
+            flattenPlane = null;
         }
     }
 
     private static readonly float BLOCK_DIAGONAL = Mathf.Sqrt(2.0f * Mathf.Pow(DensityCube.CELLS_ROW / 2.0f, 2.0f));
-    public void AddDensity(Vector3 position, float radius, float strength)
+    public void EditDensity(Vector3 position, float radius, Func<Vector3, float, float> worldPosToDensity)
     {
+        if (Mathf.Abs(radius) < Mathf.Epsilon) throw new ArgumentException("Radius is too small.");
         float maxDistance = radius + BLOCK_DIAGONAL;
 
         foreach (var coord in blocks.Keys)
@@ -91,8 +125,9 @@ public class VoxelBlockManager : Spatial
             if (distanceToBlockCenter < maxDistance)
             {
                 var block = blocks[coord];
-                var positionInBlockSpace = position - blockCenter;
-                block.AddDensity(positionInBlockSpace, radius, strength);
+                //var positionInBlockSpace = position - blockCenter;
+                block.Edit((localPos, oldDensity) => 
+                    worldPosToDensity(localPos + blockCenter, oldDensity));
             }
         }
     }
