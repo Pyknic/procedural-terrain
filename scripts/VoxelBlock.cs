@@ -62,6 +62,15 @@ public class VoxelBlock : MeshInstance
         density.EditDensity((localPos, oldDensity) =>
         {
             var pos = blockPos + localPos;
+
+
+            //var ix = (int)pos.x;
+            //var iy = (int)pos.y;
+            //var iz = (int)pos.z;
+
+            //if (ix % 13 == 0 && iy % 13 == 0 && iz % 13 == 0)
+                //return 1.0f;
+
             return noise.GetNoise3dv(pos * _noiseScale) - pos.y * _heightFactor;
         });
     }
@@ -78,8 +87,16 @@ public class VoxelBlock : MeshInstance
     {
         geometry.Clear();
 
-        for (int i = 0; i < DensityCube.CELLS_CUBE; i++)
-            TriangulateVoxel(i);
+        byte occlusionMask = 0;
+
+        //for (int i = 0; i < DensityCube.CELLS_CUBE; i++) {
+        for (int i = DensityCube.CELLS_CUBE - 1; i >= 0; i--)
+        {
+            byte bit = (byte)(0x1 << (i % DensityCube.CELLS_PLANE));
+
+            if (TriangulateVoxel(i, (occlusionMask & bit) != 0))
+                occlusionMask |= bit;
+        }
 
         if (surfaceId >= 0) ((ArrayMesh) Mesh).SurfaceRemove(surfaceId);
         surfaceId = geometry.Build((ArrayMesh) Mesh);
@@ -94,7 +111,7 @@ public class VoxelBlock : MeshInstance
         if (surfaceId >= 0) CreateTrimeshCollision();
     }
 
-    private void TriangulateVoxel(int cellIdx)
+    private bool TriangulateVoxel(int cellIdx, bool occluded)
     {
         var cellPos = DensityCube.CellCenter(cellIdx);
 
@@ -108,6 +125,8 @@ public class VoxelBlock : MeshInstance
         }
         
         var fromTriangleTable = TRIANGLE_TABLE[voxelType];
+        if (fromTriangleTable.Length == 0) return false;
+
         var triangle = new Vector3[3];
         
         // Iterate over the triangles in the voxel
@@ -137,9 +156,15 @@ public class VoxelBlock : MeshInstance
             var normal = (crossC - crossB).Cross(crossC - crossA).Normalized();
             
             for (var j = 0; j < 3; j++)
-                geometry.Append(triangle[j], normal, new Color(0, 0, 0));
+                geometry.Append(triangle[j], normal, occluded ? RED : BLACK);
         }
+
+        return true;
     }
+
+    private static readonly Color 
+        RED   = new Color(1, 0, 0), 
+        BLACK = new Color(0, 0, 0);
 
     //private float LookupDensity(BlockCoord neighbourCell)
     //{
