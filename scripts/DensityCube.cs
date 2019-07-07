@@ -10,7 +10,7 @@ public class DensityCube
      */
     public static readonly int
 
-        CELLS_ROW   = 16,
+        CELLS_ROW   = 8,
         CELLS_PLANE = CELLS_ROW * CELLS_ROW,
         CELLS_CUBE  = CELLS_PLANE * CELLS_ROW,
 
@@ -41,11 +41,12 @@ public class DensityCube
         LEFT_TOP_FAR
     }
 
-    private float[] density;
+    private float[] density, luminance;
 
     public DensityCube()
     {
-        density = new float[DENSITY_CUBE];
+        density   = new float[DENSITY_CUBE];
+        luminance = new float[CELLS_CUBE];
     }
 
     public float GetDensity(int cellIdx, Corner corner)
@@ -77,6 +78,69 @@ public class DensityCube
             }
         }
         return changed;
+    }
+
+    private static readonly float LIGHT_DECAY = 1.0f;
+    private static readonly float OCCLUSION_FACTOR = 1.0f;
+    public float[] UpdateLuminance(float[] luminanceAbove)
+    {
+        for (int i = 0; i < CELLS_PLANE; i++)
+        {
+            int cellIdx = (CELLS_ROW - 1) * CELLS_PLANE + i;
+            float lightSum = 0.0f;
+            int lightCount = 0;
+
+            for (int j = 0; j < 9; j++)
+            {
+                if (i == 4) continue;
+                int ix = (i % CELLS_ROW) + (j % 3 - 1);
+                int iy = (i / CELLS_ROW) + (j / 3 - 1);
+                if (ix >= 0 && ix < CELLS_ROW 
+                &&  iy >= 0 && iy < CELLS_ROW)
+                {
+                    lightSum += luminanceAbove[iy * CELLS_ROW + ix];
+                    lightCount++;
+                }
+            }
+
+            luminance[cellIdx] = lightSum / lightCount * LIGHT_DECAY;
+        }
+
+        for (int y = CELLS_ROW - 2; y >= 0; y--)
+        {
+            for (int i = 0; i < CELLS_PLANE; i++)
+            {
+                int cellIdx = y * CELLS_PLANE + i;
+                float occlusion = 0.0f;
+                float lightSum  = 0.0f;
+                int lightCount  = 0;
+
+                for (int j = 0; j < 8; j++)
+                {
+                    var densityIdx = CellToDensityIdx(cellIdx, (Corner)j);
+                    var value = density[densityIdx];
+                    occlusion += (value - MIN_DENSITY) / (MAX_DENSITY - MIN_DENSITY) / 8;
+                }
+
+                for (int j = 0; j < 9; j++)
+                {
+                    if (i == 4) continue;
+                    int ix = (i % CELLS_ROW) + (j % 3 - 1);
+                    int iy = (i / CELLS_ROW) + (j / 3 - 1);
+                    if (ix >= 0 && ix < CELLS_ROW
+                    &&  iy >= 0 && iy < CELLS_ROW)
+                    {
+                        lightSum += luminance[iy * CELLS_ROW + ix];
+                        lightCount++;
+                    }
+                }
+
+                luminance[cellIdx] = lightSum / lightCount * 
+                    LIGHT_DECAY * (1.0f - occlusion * OCCLUSION_FACTOR);
+            }
+        }
+
+        return luminance;
     }
 
     public static Vector3 CellCenter(int cellIdx)

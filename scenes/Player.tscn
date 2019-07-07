@@ -1,0 +1,37 @@
+[gd_scene load_steps=3 format=2]
+
+[ext_resource path="res://scripts/camera/firstperson.gd" type="Script" id=1]
+
+[sub_resource type="CapsuleShape" id=1]
+margin = 0.238
+radius = 0.9
+height = 1.8
+
+[node name="Player" type="KinematicBody"]
+transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.79886, 0 )
+input_ray_pickable = false
+script = ExtResource( 1 )
+mouse_sensitivity = 0.5
+MAX_SPEED = 10.0
+MAX_RUNNING_SPEED = 20.0
+MAX_SLOPE_ANGLE = 45.0
+MAX_STAIR_SLOPE = 35.0
+
+[node name="Capsule" type="CollisionShape" parent="."]
+transform = Transform( 1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, 0 )
+shape = SubResource( 1 )
+
+[node name="Head" type="Spatial" parent="."]
+transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.986, 0 )
+
+[node name="Camera" type="Camera" parent="Head"]
+current = true
+
+[node name="Tail" type="RayCast" parent="."]
+transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.29134, 0 )
+enabled = true
+
+[node name="StairCatcher" type="RayCast" parent="."]
+transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.978599, -0.967584 )
+enabled = true
+cast_to = Vector3( 0, -0.4, 0 )

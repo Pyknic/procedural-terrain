@@ -7,11 +7,13 @@ public class VoxelBlockManager : Spatial
     private IDictionary<BlockCoord, VoxelBlock> blocks;
     private GeometryBuffer geometry;
     private Spatial observerNode;
+    private Spatial projectionNode;
 
     [Export] int _minHorizontalBlocks;
     [Export] int _maxHorizontalBlocks;
     [Export] int _verticalBlocks;
     [Export] NodePath _observer;
+    [Export] NodePath _projection;
     
     [Export] float _noiseScale = 1.0f;
     [Export] float _heightFactor = 1.0f;
@@ -39,14 +41,20 @@ public class VoxelBlockManager : Spatial
             return;
         }
 
-        var nodeFound = GetNode<Spatial>(_observer);
-        if (nodeFound == null)
+        observerNode = GetNode<Spatial>(_observer);
+        if (observerNode == null)
         {
             GD.PrintErr("VoxelBlockManager was given a node that did not inherit from Spatial.");
             return;
         }
-
-        observerNode = nodeFound;
+		
+		observerNode = GetNode<Spatial>(_observer);
+        if (observerNode == null)
+        {
+            GD.PrintErr("VoxelBlockManager was given a node that did not inherit from Spatial.");
+            return;
+        }
+		
         LoadBlocksNear(observerNode.Translation);
 
         SetPhysicsProcess(true);

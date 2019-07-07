@@ -1,14 +1,18 @@
-[gd_scene load_steps=6 format=2]
+[gd_scene load_steps=7 format=2]
 
 [ext_resource path="res://scripts/camera/camera_control.gd" type="Script" id=1]
 [ext_resource path="res://scripts/VoxelBlockManager.cs" type="Script" id=2]
 [ext_resource path="res://materials/grass.material" type="Material" id=3]
-[ext_resource path="res://scripts/camera/firstperson.gd" type="Script" id=4]
+[ext_resource path="res://scenes/Player.tscn" type="PackedScene" id=4]
 
-[sub_resource type="CapsuleShape" id=1]
-margin = 0.238
-radius = 0.9
-height = 1.8
+[sub_resource type="SpatialMaterial" id=1]
+flags_transparent = true
+flags_unshaded = true
+flags_do_not_receive_shadows = true
+flags_disable_ambient_light = true
+albedo_color = Color( 0, 0.647059, 1, 0.501961 )
+
+[sub_resource type="PlaneMesh" id=2]
 
 [node name="World" type="Spatial"]
 
@@ -35,35 +39,14 @@ _toolRadius = 3.0
 _toolStrength = 0.5
 _material = ExtResource( 3 )
 
+[node name="Projection" type="MeshInstance" parent="Voxels"]
+material_override = SubResource( 1 )
+cast_shadow = 0
+mesh = SubResource( 2 )
+material/0 = null
+
 [node name="Sun" type="DirectionalLight" parent="."]
 transform = Transform( 1, 0, 0, 0, 0.417928, 0.90848, 0, -0.90848, 0.417928, -1.37012, 10.144, 0 )
 shadow_enabled = true
 
-[node name="Player" type="KinematicBody" parent="."]
-transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.79886, 0 )
-input_ray_pickable = false
-script = ExtResource( 4 )
-mouse_sensitivity = 0.5
-MAX_SPEED = 10.0
-MAX_RUNNING_SPEED = 20.0
-MAX_SLOPE_ANGLE = 45.0
-MAX_STAIR_SLOPE = 35.0
-
-[node name="Capsule" type="CollisionShape" parent="Player"]
-transform = Transform( 1, 0, 0, 0, -4.37114e-08, -1, 0, 1, -4.37114e-08, 0, 0, 0 )
-shape = SubResource( 1 )
-
-[node name="Head" type="Spatial" parent="Player"]
-transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.986, 0 )
-
-[node name="Camera" type="Camera" parent="Player/Head"]
-current = true
-
-[node name="Tail" type="RayCast" parent="Player"]
-transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.29134, 0 )
-enabled = true
-
-[node name="StairCatcher" type="RayCast" parent="Player"]
-transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.978599, -0.967584 )
-enabled = true
-cast_to = Vector3( 0, -0.4, 0 )
+[node name="Player" parent="." instance=ExtResource( 4 )]

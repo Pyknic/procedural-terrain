@@ -1,0 +1,37 @@
+[gd_scene load_steps=5 format=2]
+
+[ext_resource path="res://scripts/VoxelTerrain.cs" type="Script" id=1]
+[ext_resource path="res://materials/grass.material" type="Material" id=2]
+[ext_resource path="res://scripts/DensityGenerator.cs" type="Script" id=3]
+[ext_resource path="res://scenes/Player.tscn" type="PackedScene" id=4]
+
+[node name="Game" type="Spatial"]
+
+[node name="VoxelTerrain" type="Spatial" parent="."]
+script = ExtResource( 1 )
+densityGeneratorPath = NodePath("DensityGenerator")
+material = ExtResource( 2 )
+observerPath = NodePath("../Player")
+debugLabelPath = NodePath("../Debug")
+toolRadius = 4.0
+maxToolDistance = 15.0
+
+[node name="DensityGenerator" type="Node" parent="VoxelTerrain"]
+script = ExtResource( 3 )
+scale = Vector3( 0.5, 0.2, 0.5 )
+altitudeFactor = 0.2
+
+[node name="DirectionalLight" type="DirectionalLight" parent="VoxelTerrain"]
+transform = Transform( 0.863903, -0.230808, -0.447661, 0.503659, 0.395894, 0.767852, 0, -0.888817, 0.458262, -0.0637245, 21.1285, 0 )
+
+[node name="Player" parent="." instance=ExtResource( 4 )]
+transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 39.251, 0 )
+
+[node name="Debug" type="Label" parent="."]
+margin_left = 13.0
+margin_top = 14.0
+margin_right = 165.0
+margin_bottom = 51.0
+text = "Testing"
+
+[node name="Sprite3D" type="Sprite3D" parent="."]

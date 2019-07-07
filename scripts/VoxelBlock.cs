@@ -87,15 +87,12 @@ public class VoxelBlock : MeshInstance
     {
         geometry.Clear();
 
-        byte occlusionMask = 0;
+        var densitySum = new float[DensityCube.CELLS_PLANE];
 
-        //for (int i = 0; i < DensityCube.CELLS_CUBE; i++) {
         for (int i = DensityCube.CELLS_CUBE - 1; i >= 0; i--)
         {
-            byte bit = (byte)(0x1 << (i % DensityCube.CELLS_PLANE));
-
-            if (TriangulateVoxel(i, (occlusionMask & bit) != 0))
-                occlusionMask |= bit;
+            var j = i % DensityCube.CELLS_PLANE;
+            densitySum[j] += TriangulateVoxel(i, densitySum[j]);
         }
 
         if (surfaceId >= 0) ((ArrayMesh) Mesh).SurfaceRemove(surfaceId);
@@ -111,60 +108,72 @@ public class VoxelBlock : MeshInstance
         if (surfaceId >= 0) CreateTrimeshCollision();
     }
 
-    private bool TriangulateVoxel(int cellIdx, bool occluded)
+    private float TriangulateVoxel(int cellIdx, float densityAbove)
     {
         var cellPos = DensityCube.CellCenter(cellIdx);
 
+        var color = new Color(0, 0, 0);
+        if (densityAbove >= 8f) color.r = 1.0f;
+        else color.r = Mathf.Abs(densityAbove / 8f);
+
         // Build a bitset of the status of the eight corners in the cube
         var voxelType = 0;
+        var densitySum = 0.0f;
         for (int i = 0; i < 8; i++)
         {
             var cornerDensity = density.GetDensity(cellIdx, (DensityCube.Corner) i);
             if (cornerDensity < _surfaceLevel)
+            {
                 voxelType |= 0x1 << i;
+            }
+            else
+            {
+                densitySum += cornerDensity;
+            }
         }
         
         var fromTriangleTable = TRIANGLE_TABLE[voxelType];
-        if (fromTriangleTable.Length == 0) return false;
-
-        var triangle = new Vector3[3];
-        
-        // Iterate over the triangles in the voxel
-        for (var i = 0; i < fromTriangleTable.Length / 3; i++)
+        if (fromTriangleTable.Length > 0)
         {
-            // Compute the vertices of the triangle
-            for (var j = 0; j < 3; j++)
+            var triangle = new Vector3[3];
+
+            // Iterate over the triangles in the voxel
+            for (var i = 0; i < fromTriangleTable.Length / 3; i++)
             {
-                var edgeIdx = fromTriangleTable[i * 3 + j];
-                var cornerA = (DensityCube.Corner)CORNER_INDEX_A_FROM_EDGE[edgeIdx];
-                var cornerB = (DensityCube.Corner)CORNER_INDEX_B_FROM_EDGE[edgeIdx];
+                // Compute the vertices of the triangle
+                for (var j = 0; j < 3; j++)
+                {
+                    var edgeIdx = fromTriangleTable[i * 3 + j];
+                    var cornerA = (DensityCube.Corner)CORNER_INDEX_A_FROM_EDGE[edgeIdx];
+                    var cornerB = (DensityCube.Corner)CORNER_INDEX_B_FROM_EDGE[edgeIdx];
 
-                var densityA = density.GetDensity(cellIdx, cornerA);
-                var densityB = density.GetDensity(cellIdx, cornerB);
+                    var densityA = density.GetDensity(cellIdx, cornerA);
+                    var densityB = density.GetDensity(cellIdx, cornerB);
 
-                var cornerPosA = cellPos + DensityCube.CornerPosition(cornerA);
-                var cornerPosB = cellPos + DensityCube.CornerPosition(cornerB);
+                    var cornerPosA = cellPos + DensityCube.CornerPosition(cornerA);
+                    var cornerPosB = cellPos + DensityCube.CornerPosition(cornerB);
 
-                var interpFactor = (_surfaceLevel - densityA) / (densityB - densityA);
-                triangle[j] = cornerPosA + (cornerPosB - cornerPosA) * interpFactor;
+                    var interpFactor = (_surfaceLevel - densityA) / (densityB - densityA);
+                    triangle[j] = cornerPosA + (cornerPosB - cornerPosA) * interpFactor;
+                }
+
+                // Compute the normals of the triangle
+                var crossA = triangle[0];
+                var crossB = triangle[1];
+                var crossC = triangle[2];
+                var normal = (crossC - crossB).Cross(crossC - crossA).Normalized();
+
+                for (var j = 0; j < 3; j++)
+                    geometry.Append(triangle[j], normal, color);
             }
-
-            // Compute the normals of the triangle
-            var crossA = triangle[0];
-            var crossB = triangle[1];
-            var crossC = triangle[2];
-            var normal = (crossC - crossB).Cross(crossC - crossA).Normalized();
-            
-            for (var j = 0; j < 3; j++)
-                geometry.Append(triangle[j], normal, occluded ? RED : BLACK);
         }
 
-        return true;
+        return densitySum;
     }
 
-    private static readonly Color 
-        RED   = new Color(1, 0, 0), 
-        BLACK = new Color(0, 0, 0);
+    //private static readonly Color 
+        //RED   = new Color(1, 0, 0), 
+        //BLACK = new Color(0, 0, 0);
 
     //private float LookupDensity(BlockCoord neighbourCell)
     //{

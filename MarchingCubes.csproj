@@ -55,6 +55,10 @@
     <Compile Include="scripts\VoxelBlock.cs" />
     <Compile Include="scripts\VoxelBlockManager.cs" />
     <Compile Include="scripts\DensityCube.cs" />
+    <Compile Include="scripts\Chunk.cs" />
+    <Compile Include="scripts\VoxelTerrain.cs" />
+    <Compile Include="scripts\ChunkInstance.cs" />
+    <Compile Include="scripts\DensityGenerator.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
 </Project>
