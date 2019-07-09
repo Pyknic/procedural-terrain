@@ -50,15 +50,20 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="scripts\BlockCoord.cs" />
-    <Compile Include="scripts\GeometryBuffer.cs" />
-    <Compile Include="scripts\VoxelBlock.cs" />
-    <Compile Include="scripts\VoxelBlockManager.cs" />
-    <Compile Include="scripts\DensityCube.cs" />
+    <Compile Include="scripts\DensityGenerator.cs" />
+    <Compile Include="scripts\geometry\Cell.cs" />
+    <Compile Include="scripts\geometry\Point.cs" />
+    <Compile Include="scripts\geometry\Direction.cs" />
+    <Compile Include="scripts\geometry\ChunkPosition.cs" />
+    <Compile Include="scripts\geometry\Triangle.cs" />
+    <Compile Include="scripts\geometry\MarchingCubes.cs" />
+    <Compile Include="scripts\geometry\GlobalPoint.cs" />
     <Compile Include="scripts\Chunk.cs" />
     <Compile Include="scripts\VoxelTerrain.cs" />
     <Compile Include="scripts\ChunkInstance.cs" />
-    <Compile Include="scripts\DensityGenerator.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="scripts\geometry\" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
 </Project>

@@ -1,0 +1,33 @@
+[gd_scene load_steps=5 format=2]
+
+[sub_resource type="CubeMesh" id=1]
+flip_faces = true
+size = Vector3( 2, 2, 8 )
+
+[sub_resource type="Shader" id=2]
+code = "shader_type spatial;
+render_mode unshaded;
+
+varying float z;
+void vertex() {
+	z = pow((VERTEX.z + 4.0) / 8.0, 2.0);
+}
+
+void fragment() {
+	ALBEDO = vec3(1, 1, 1) * z;
+}"
+
+[sub_resource type="ShaderMaterial" id=3]
+shader = SubResource( 2 )
+
+[sub_resource type="Environment" id=4]
+
+[node name="Spatial" type="Spatial"]
+
+[node name="MeshInstance" type="MeshInstance" parent="."]
+mesh = SubResource( 1 )
+material/0 = SubResource( 3 )
+
+[node name="Camera" type="Camera" parent="."]
+transform = Transform( 0.988881, 0.00662163, 0.14856, 0, 0.999008, -0.0445278, -0.148708, 0.0440327, 0.9879, 0.629918, -0.322322, 3.97254 )
+environment = SubResource( 4 )

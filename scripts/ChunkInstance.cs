@@ -1,49 +1,19 @@
-﻿using System;
+﻿using System.Collections.Generic;
 using Godot;
 
 public class ChunkInstance : MeshInstance
 {
-    private const float GEOMETRY_UPDATE_FREQUENCY = 0.05f;
-
-    private Chunk data;
-    private GeometryBuffer geometryBuffer;
-    private DensityGenerator densityGenerator;
+    private readonly Chunk data;
     private int surfaceId = -1;
 
     public ChunkInstance() { } // Only used internally by Godot.
 
-    public ChunkInstance(Chunk chunk, GeometryBuffer geometry, DensityGenerator density)
+    public ChunkInstance(Chunk chunk)
     {
         data             = chunk;
-        geometryBuffer   = geometry;
-        densityGenerator = density;
-        Translation      = data.WorldPosition();
+        Translation      = chunk.Position().WorldPosition();
         Mesh             = new ArrayMesh();
-    }
-
-    public override void _Ready()
-    {
-        base._Ready();
-        data.InitDensity(densityGenerator.GetDensity);
-        data.InitLights(pos => pos.y > 0 ? 1.0f : 0.0f);
-        data.UpdateLights();
-        UpdateGeometry();
-    }
-
-    float lastCheck = 0.0f;
-    public override void _Process(float delta)
-    {
-        base._Process(delta);
-        lastCheck += delta;
-        if (lastCheck > GEOMETRY_UPDATE_FREQUENCY)
-        {
-            if (data.PollDensityDirty() || data.PollLightDirty())
-            {
-                UpdateGeometry();
-            }
-
-            lastCheck = 0.0f;
-        }
+        chunk.SetListener(UpdateGeometry);
     }
 
     public Chunk GetChunk()
@@ -51,21 +21,54 @@ public class ChunkInstance : MeshInstance
         return data;
     }
 
-    public void UpdateGeometry()
+    public void UpdateGeometry(IList<Triangle> triangles)
     {
-        geometryBuffer.Clear();
-        data.CreateGeometry(geometryBuffer);
+        if (triangles.Count == 0) return;
 
-        if (surfaceId >= 0) ((ArrayMesh)Mesh).SurfaceRemove(surfaceId);
-        surfaceId = geometryBuffer.Build((ArrayMesh)Mesh);
+        var indices = new int[triangles.Count * 3];
+        var vertices = new Vector3[triangles.Count * 3];
+        var normals = new Vector3[triangles.Count * 3];
+        var colors = new Color[triangles.Count * 3];
 
-        for (int i = 0; i < GetChildCount(); i++)
+        int i = 0;
+        foreach (var triangle in triangles)
         {
-            var child = GetChild(i);
-            if (child is StaticBody)
-                child.QueueFree();
+            vertices[i * 3]     = triangle.a;
+            vertices[i * 3 + 1] = triangle.b;
+            vertices[i * 3 + 2] = triangle.c;
+
+            colors[i * 3]     = triangle.colorA;
+            colors[i * 3 + 1] = triangle.colorB;
+            colors[i * 3 + 2] = triangle.colorC;
+
+            for (int j = 0; j < 3; j++)
+            {
+                int k = i * 3 + j;
+                indices[k] = k;
+                normals[k] = triangle.normal;
+            }
+
+            i++;
         }
 
-        if (surfaceId >= 0) CreateTrimeshCollision();
+        var mesh = (ArrayMesh)Mesh;
+        if (surfaceId >= 0) mesh.SurfaceRemove(surfaceId);
+        surfaceId = mesh.GetSurfaceCount();
+
+        var arrays = new Godot.Collections.Array();
+        arrays.Resize((int)ArrayMesh.ArrayType.Max);
+        arrays[(int)ArrayMesh.ArrayType.Index] = indices;
+        arrays[(int)ArrayMesh.ArrayType.Vertex] = vertices;
+        arrays[(int)ArrayMesh.ArrayType.Normal] = normals;
+        arrays[(int)ArrayMesh.ArrayType.Color] = colors;
+
+        mesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
+
+        while (GetChildCount() > 0)
+        {
+            GetChild(0).Free();
+        }
+
+        CreateTrimeshCollision();
     }
 }

@@ -1,4 +1,4 @@
-[gd_scene load_steps=3 format=2]
+[gd_scene load_steps=5 format=2]
 
 [ext_resource path="res://scripts/camera/firstperson.gd" type="Script" id=1]
 
@@ -6,6 +6,13 @@
 margin = 0.238
 radius = 0.9
 height = 1.8
+
+[sub_resource type="ProceduralSky" id=2]
+
+[sub_resource type="Environment" id=3]
+background_mode = 2
+background_sky = SubResource( 2 )
+ambient_light_energy = 0.0
 
 [node name="Player" type="KinematicBody"]
 transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 8.79886, 0 )
@@ -25,6 +32,7 @@ shape = SubResource( 1 )
 transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.986, 0 )
 
 [node name="Camera" type="Camera" parent="Head"]
+environment = SubResource( 3 )
 current = true
 
 [node name="Tail" type="RayCast" parent="."]

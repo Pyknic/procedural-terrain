@@ -1,30 +1,64 @@
-[gd_scene load_steps=5 format=2]
+[gd_scene load_steps=8 format=2]
 
 [ext_resource path="res://scripts/VoxelTerrain.cs" type="Script" id=1]
-[ext_resource path="res://materials/grass.material" type="Material" id=2]
-[ext_resource path="res://scripts/DensityGenerator.cs" type="Script" id=3]
-[ext_resource path="res://scenes/Player.tscn" type="PackedScene" id=4]
+[ext_resource path="res://scripts/DensityGenerator.cs" type="Script" id=2]
+[ext_resource path="res://scenes/Player.tscn" type="PackedScene" id=3]
+
+[sub_resource type="Shader" id=1]
+code = "shader_type spatial;
+render_mode unshaded;
+
+uniform sampler2D steepnessTexture;
+
+varying float steepness;
+varying float luminance;
+varying float saturation;
+
+void vertex() {
+	steepness  = (dot(NORMAL, vec3(0, 1, 0)) + 1.0) / 2.0;
+	luminance  = pow(COLOR.r, 2.0);
+	saturation = COLOR.r / 2.0 + 0.5;
+}
+
+void fragment() {
+	vec3 steepTex = texture(steepnessTexture, vec2(steepness, 0)).rgb;
+	if (steepTex == vec3(0, 0, 0)) {
+		ALBEDO = steepTex;
+	} else {
+		// Algorithm from Chapter 16 of OpenGL Shading Language
+    	vec3 W = vec3(0.2125, 0.7154, 0.0721);
+    	vec3 intensity = vec3(dot(steepTex, W));
+    	ALBEDO = mix(intensity, steepTex, saturation) * luminance;
+	}
+}"
+
+[sub_resource type="Gradient" id=3]
+offsets = PoolRealArray( 0.00684932, 0.664384, 0.773973, 1 )
+colors = PoolColorArray( 0.304688, 0.223067, 0.169006, 1, 0.558594, 0.482462, 0.432037, 1, 0.48993, 0.621094, 0.20137, 1, 0.552914, 0.753906, 0.259155, 1 )
+
+[sub_resource type="GradientTexture" id=4]
+gradient = SubResource( 3 )
+width = 512
+
+[sub_resource type="ShaderMaterial" id=2]
+shader = SubResource( 1 )
+shader_param/steepnessTexture = SubResource( 4 )
 
 [node name="Game" type="Spatial"]
 
 [node name="VoxelTerrain" type="Spatial" parent="."]
 script = ExtResource( 1 )
 densityGeneratorPath = NodePath("DensityGenerator")
-material = ExtResource( 2 )
+material = SubResource( 2 )
 observerPath = NodePath("../Player")
 debugLabelPath = NodePath("../Debug")
-toolRadius = 4.0
-maxToolDistance = 15.0
 
 [node name="DensityGenerator" type="Node" parent="VoxelTerrain"]
-script = ExtResource( 3 )
+script = ExtResource( 2 )
 scale = Vector3( 0.5, 0.2, 0.5 )
 altitudeFactor = 0.2
 
-[node name="DirectionalLight" type="DirectionalLight" parent="VoxelTerrain"]
-transform = Transform( 0.863903, -0.230808, -0.447661, 0.503659, 0.395894, 0.767852, 0, -0.888817, 0.458262, -0.0637245, 21.1285, 0 )
-
-[node name="Player" parent="." instance=ExtResource( 4 )]
+[node name="Player" parent="." instance=ExtResource( 3 )]
 transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 39.251, 0 )
 
 [node name="Debug" type="Label" parent="."]
@@ -35,3 +69,7 @@ margin_bottom = 51.0
 text = "Testing"
 
 [node name="Sprite3D" type="Sprite3D" parent="."]
+
+[node name="DirectionalLight" type="DirectionalLight" parent="."]
+transform = Transform( 0.920129, 0.161727, 0.35666, -0.391614, 0.379991, 0.838001, 0, -0.910742, 0.412976, 0, 0, 0 )
+shadow_enabled = true

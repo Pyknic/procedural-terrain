@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Godot;
 
@@ -17,17 +17,17 @@ public class VoxelTerrain : Spatial
     private Spatial observer;
     private Label debugLabel;
 
-    private Dictionary<Chunk.ChunkPos, Chunk> chunks;
-    private GeometryBuffer geometryBuffer;
+    private Dictionary<ChunkPosition, Chunk> chunks;
 
     public VoxelTerrain()
     {
-        chunks = new Dictionary<Chunk.ChunkPos, Chunk>();
-        geometryBuffer = new GeometryBuffer();
+        chunks = new Dictionary<ChunkPosition, Chunk>();
     }
 
     public override void _Ready()
     {
+        GD.Print("Ready to create world!");
+
         if (densityGeneratorPath == null)
         {
             GD.PushError("VoxelTerrain must have a Density Generator.");
@@ -64,29 +64,35 @@ public class VoxelTerrain : Spatial
             debugLabel = GetNode<Label>(debugLabelPath);
         }
 
-        for (int y = 0; y < 1; y++)
+        for (int y = -5; y < 5; y++)
         {
-            for (int z = -3; z <= 3; z++)
+            for (int z = -5; z <= 5; z++)
             {
-                for (int x = -3; x <= 3; x++)
+                for (int x = -5; x <= 5; x++)
                 {
-                    var at    = new Chunk.ChunkPos(x, y, z);
+                    var at    = new ChunkPosition(x, y, z);
                     var chunk = new Chunk(at);
                     AddChunk(chunk);
 
-                    var instance = new ChunkInstance(chunk, geometryBuffer, densityGenerator)
+                    var instance = new ChunkInstance(chunk)
                     {
                         MaterialOverride = material
                     };
 
+                    chunk.InitDensity(densityGenerator.GetDensity);
                     AddChild(instance);
                 }
             }
         }
 
+        var origoChunk = chunks[new ChunkPosition(0, 0, 0)];
+        origoChunk.UpdateLuminance();
+        origoChunk.ForEachChunk(chunk => chunk.TriangulateChunk());
+
         SetPhysicsProcess(true);
     }
 
+    private float lastUpdate;
     private Plane? flattenPlane;
     public override void _PhysicsProcess(float delta)
     {
@@ -125,26 +131,26 @@ public class VoxelTerrain : Spatial
                     bool first = true;
                     for (int i = 0; i < 6; i++)
                     {
-                        if (chunk.HasNeighbour((Chunk.Direction)i))
+                        if (chunk.HasNeighbour((Direction)i))
                         {
                             if (first) first = false;
                             else debugLabel.Text += ", ";
 
-                            switch ((Chunk.Direction)i)
+                            switch ((Direction)i)
                             {
-                                case Chunk.Direction.WEST:
+                                case Direction.WEST:
                                     debugLabel.Text += "WEST"; break;
-                                case Chunk.Direction.EAST:
+                                case Direction.EAST:
                                     debugLabel.Text += "EAST"; break;
-                                case Chunk.Direction.BELOW:
+                                case Direction.BELOW:
                                     debugLabel.Text += "BELOW"; break;
-                                case Chunk.Direction.ABOVE:
+                                case Direction.ABOVE:
                                     debugLabel.Text += "ABOVE"; break;
-                                case Chunk.Direction.NORTH:
+                                case Direction.NORTH:
                                     debugLabel.Text += "NORTH"; break;
-                                case Chunk.Direction.SOUTH:
+                                case Direction.SOUTH:
                                     debugLabel.Text += "SOUTH"; break;
-                                case Chunk.Direction.SELF:
+                                case Direction.SELF:
                                     debugLabel.Text += "SELF"; break;
                             }
                         }
@@ -171,40 +177,18 @@ public class VoxelTerrain : Spatial
                 });
             }
         }
-    }
 
-    private Chunk NearestChunk(Vector3 worldPos)
-    {
-        // Optimistic approach
-        var expectedPos = new Chunk.ChunkPos(
-            (int) ((worldPos.x + 4f) / -Chunk.CELLS_ROW),
-            (int) ((worldPos.y + 4f) / -Chunk.CELLS_ROW),
-            (int) ((worldPos.z + 4f) / -Chunk.CELLS_ROW)
-        );
-
-        if (chunks.TryGetValue(expectedPos, out Chunk found))
-            return found;
-
-        // Search for the nearest position.
-        Chunk nearest = null;
-        float nearestDistance = 0.0f;
-        foreach (var chunk in chunks.Values)
+        if (Input.IsActionJustPressed("update_lights"))
         {
-            var distance = (worldPos - chunk.WorldPosition()).LengthSquared();
-            if (nearest == null || distance < nearestDistance)
+            if (chunk != null)
             {
-                nearestDistance = distance;
-                nearest = chunk;
+                chunk.UpdateLuminance();
+                chunk.ForEachChunk(c => c.TriangulateChunk());
             }
         }
-
-        if (nearest == null)
-            GD.PushError("Error! No chunks loaded.");
-
-        return nearest;
     }
 
-    private void WithChunk(Chunk.ChunkPos at, Action<Chunk> action)
+    private void WithChunk(ChunkPosition at, Action<Chunk> action)
     {
         if (chunks.TryGetValue(at, out Chunk found))
             action(found);
@@ -223,45 +207,21 @@ public class VoxelTerrain : Spatial
         else
         {
             chunks.Add(at, chunk);
-            WithChunk(at + new Chunk.ChunkPos(1, 0, 0), other =>
-            {
-                chunk.AddNeighbour(Chunk.Direction.EAST, other);
-                other.AddNeighbour(Chunk.Direction.WEST, chunk);
-            });
 
-            WithChunk(at + new Chunk.ChunkPos(-1, 0, 0), other =>
+            for (int i = 0; i < 6; i++)
             {
-                chunk.AddNeighbour(Chunk.Direction.WEST, other);
-                other.AddNeighbour(Chunk.Direction.EAST, chunk);
-            });
-
-            WithChunk(at + new Chunk.ChunkPos(0, 1, 0), other =>
-            {
-                chunk.AddNeighbour(Chunk.Direction.ABOVE, other);
-                other.AddNeighbour(Chunk.Direction.BELOW, chunk);
-            });
-
-            WithChunk(at + new Chunk.ChunkPos(0, -1, 0), other =>
-            {
-                chunk.AddNeighbour(Chunk.Direction.BELOW, other);
-                other.AddNeighbour(Chunk.Direction.ABOVE, chunk);
-            });
-
-            WithChunk(at + new Chunk.ChunkPos(0, 0, 1), other =>
-            {
-                chunk.AddNeighbour(Chunk.Direction.SOUTH, other);
-                other.AddNeighbour(Chunk.Direction.NORTH, chunk);
-            });
-
-            WithChunk(at + new Chunk.ChunkPos(0, 0, -1), other =>
-            {
-                chunk.AddNeighbour(Chunk.Direction.NORTH, other);
-                other.AddNeighbour(Chunk.Direction.SOUTH, chunk);
-            });
+                var direction = (Direction)i;
+                var opposite  = (Direction) (i % 2 == 0 ? i + 1 : i - 1);
+                WithChunk(at.Step(direction), other =>
+                {
+                    chunk.AddNeighbour(direction, other);
+                    other.AddNeighbour(opposite, chunk);
+                });
+            }
         }
     }
 
-    private void RemoveChunk(Chunk.ChunkPos at)
+    private void RemoveChunk(ChunkPosition at)
     {
         if (!chunks.ContainsKey(at))
         {
@@ -274,45 +234,18 @@ public class VoxelTerrain : Spatial
         {
             var chunk = chunks[at];
 
-            WithChunk(at + new Chunk.ChunkPos(1, 0, 0), other =>
+            for (int i = 0; i < 6; i++)
             {
-                chunk.RemoveNeighbour(Chunk.Direction.EAST, chunk);
-                other.RemoveNeighbour(Chunk.Direction.WEST, chunk);
-            });
-
-            WithChunk(at + new Chunk.ChunkPos(-1, 0, 0), other =>
-            {
-                chunk.RemoveNeighbour(Chunk.Direction.WEST, chunk);
-                other.RemoveNeighbour(Chunk.Direction.EAST, chunk);
-            });
-
-            WithChunk(at + new Chunk.ChunkPos(0, 1, 0), other =>
-            {
-                chunk.RemoveNeighbour(Chunk.Direction.ABOVE, chunk);
-                other.RemoveNeighbour(Chunk.Direction.BELOW, chunk);
-            });
-
-            WithChunk(at + new Chunk.ChunkPos(0, -1, 0), other =>
-            {
-                chunk.RemoveNeighbour(Chunk.Direction.BELOW, chunk);
-                other.RemoveNeighbour(Chunk.Direction.ABOVE, chunk);
-            });
-
-            WithChunk(at + new Chunk.ChunkPos(0, 0, 1), other =>
-            {
-                chunk.RemoveNeighbour(Chunk.Direction.SOUTH, chunk);
-                other.RemoveNeighbour(Chunk.Direction.NORTH, chunk);
-            });
-
-            WithChunk(at + new Chunk.ChunkPos(0, 0, -1), other =>
-            {
-                chunk.RemoveNeighbour(Chunk.Direction.NORTH, chunk);
-                other.RemoveNeighbour(Chunk.Direction.SOUTH, chunk);
-            });
+                var direction = (Direction)i;
+                var opposite = (Direction)(i % 2 == 0 ? i + 1 : i - 1);
+                WithChunk(at.Step(direction), other =>
+                {
+                    chunk.RemoveNeighbour(direction, other);
+                    other.RemoveNeighbour(opposite, chunk);
+                });
+            }
 
             chunks.Remove(at);
         }
     }
-
-
 }

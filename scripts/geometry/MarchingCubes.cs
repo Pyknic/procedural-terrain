@@ -1,142 +1,43 @@
-using System;
-using Godot;
+﻿using Godot;
+using System.Collections.Generic;
 
-public class VoxelBlock : MeshInstance
+public static class MarchingCubes
 {
+    public const float DENSITY_THRESHOLD = 0.5f;
 
-    //public const int VOXELS_ROW    = 16;
-    //private const int VOXELS_PLANE = VOXELS_ROW * VOXELS_ROW;
-    //private const int VOXELS_CUBE  = VOXELS_PLANE * VOXELS_ROW;
-
-    private readonly BlockCoord coordinate;
-    private readonly GeometryBuffer geometry;
-    private readonly DensityCube density;
-
-    [Export] int _noiseSeed          = 1;
-    [Export] int _noiseOctaves       = 4;
-    [Export] float _noisePeriod      = 20.0f;
-    [Export] float _noisePersistence = 0.8f;
-    [Export] float _noiseScale       = 1.0f;
-    [Export] float _heightFactor     = 1.0f;
-    [Export] float _surfaceLevel     = 0.0f;
-    [Export] float _cubeScale        = 0.5f;
-
-    public VoxelBlock()
+    public static void Triangulate(ref float[] densities, ref byte[] depths, ref IList<Triangle> triangles)
     {
-        // Warning! This constructor is not intended to be used! It is only 
-        // there so that Godot can create a temporary instance.
+        for (int i = 0; i < Cell.CUBE_SIZE; i++)
+            TriangulateCell(new Cell(i), ref densities, ref depths, ref triangles);
     }
 
-    public VoxelBlock(BlockCoord coordinate, GeometryBuffer geometryBuffer = null)
+    private static void TriangulateCell(Cell cell, ref float[] densities, ref byte[] depths, ref IList<Triangle> triangles)
     {
-        this.coordinate = coordinate;
-        geometry = geometryBuffer ?? new GeometryBuffer();
-        density = new DensityCube();
-    }
-
-    // Called when the node enters the scene tree for the first time.
-    public override void _Ready()
-    {
-        Mesh = new ArrayMesh();
-        RecreateGeometry();
-    }
-
-    public void SetConfig(float noiseScale, float heightFactor, float surfaceLevel)
-    {
-        _noiseScale   = noiseScale;
-        _heightFactor = heightFactor;
-        _surfaceLevel = surfaceLevel;
-    }
-
-    public void CreateFromAlgorithm()
-    {
-        var noise = new OpenSimplexNoise
-        {
-            Octaves     = _noiseOctaves,
-            Period      = _noisePeriod,
-            Persistence = _noisePersistence,
-            Seed        = _noiseSeed
-        };
-
-        var blockPos = new Vector3(Translation);
-        density.EditDensity((localPos, oldDensity) =>
-        {
-            var pos = blockPos + localPos;
-
-
-            //var ix = (int)pos.x;
-            //var iy = (int)pos.y;
-            //var iz = (int)pos.z;
-
-            //if (ix % 13 == 0 && iy % 13 == 0 && iz % 13 == 0)
-                //return 1.0f;
-
-            return noise.GetNoise3dv(pos * _noiseScale) - pos.y * _heightFactor;
-        });
-    }
-
-    public void Edit(Func<Vector3, float, float> tool)
-    {
-        if (density.EditDensity(tool))
-            RecreateGeometry();
-    }
-
-    private int surfaceId = -1;
-
-    private void RecreateGeometry()
-    {
-        geometry.Clear();
-
-        var densitySum = new float[DensityCube.CELLS_PLANE];
-
-        for (int i = DensityCube.CELLS_CUBE - 1; i >= 0; i--)
-        {
-            var j = i % DensityCube.CELLS_PLANE;
-            densitySum[j] += TriangulateVoxel(i, densitySum[j]);
-        }
-
-        if (surfaceId >= 0) ((ArrayMesh) Mesh).SurfaceRemove(surfaceId);
-        surfaceId = geometry.Build((ArrayMesh) Mesh);
-
-        for (int i = 0; i < GetChildCount(); i++)
-        {
-            var child = GetChild(i);
-            if (child is StaticBody)
-                child.QueueFree();
-        }
-
-        if (surfaceId >= 0) CreateTrimeshCollision();
-    }
-
-    private float TriangulateVoxel(int cellIdx, float densityAbove)
-    {
-        var cellPos = DensityCube.CellCenter(cellIdx);
-
-        var color = new Color(0, 0, 0);
-        if (densityAbove >= 8f) color.r = 1.0f;
-        else color.r = Mathf.Abs(densityAbove / 8f);
-
-        // Build a bitset of the status of the eight corners in the cube
+        // There are 256 (2^8) possible ways to triangute the cell since there 
+        // are 8 corners of a cube and each corner density can be either lower 
+        // or higher than DENSITY_THRESHOLD.
+        // 
+        // Let each bit in a byte represent the state of one corner. The type of
+        // cell can then be looked up in TRIANGLE_TABLE by passing this byte as
+        // index.
         var voxelType = 0;
-        var densitySum = 0.0f;
         for (int i = 0; i < 8; i++)
         {
-            var cornerDensity = density.GetDensity(cellIdx, (DensityCube.Corner) i);
-            if (cornerDensity < _surfaceLevel)
-            {
+            var point   = cell.GetPoint((Cell.Corner) i);
+            var density = point.SampleFrom(ref densities);
+            if (density < DENSITY_THRESHOLD)
                 voxelType |= 0x1 << i;
-            }
-            else
-            {
-                densitySum += cornerDensity;
-            }
         }
-        
+
+        // The table gives us an array of edge indices where each group of three
+        // indices will form a triangle between some point on each of those 
+        // three edges.
         var fromTriangleTable = TRIANGLE_TABLE[voxelType];
+        var vertices = new Vector3[3];
+        var colors   = new Color[3];
+
         if (fromTriangleTable.Length > 0)
         {
-            var triangle = new Vector3[3];
-
             // Iterate over the triangles in the voxel
             for (var i = 0; i < fromTriangleTable.Length / 3; i++)
             {
@@ -144,145 +45,37 @@ public class VoxelBlock : MeshInstance
                 for (var j = 0; j < 3; j++)
                 {
                     var edgeIdx = fromTriangleTable[i * 3 + j];
-                    var cornerA = (DensityCube.Corner)CORNER_INDEX_A_FROM_EDGE[edgeIdx];
-                    var cornerB = (DensityCube.Corner)CORNER_INDEX_B_FROM_EDGE[edgeIdx];
+                    var pointA = cell.GetPoint((Cell.Corner) CORNER_INDEX_A_FROM_EDGE[edgeIdx]);
+                    var pointB = cell.GetPoint((Cell.Corner) CORNER_INDEX_B_FROM_EDGE[edgeIdx]);
 
-                    var densityA = density.GetDensity(cellIdx, cornerA);
-                    var densityB = density.GetDensity(cellIdx, cornerB);
+                    // Determine where on the edge between these two corners the
+                    // vertice should be located by interpolating the densities
+                    // on these two corners.
+                    var densityA = pointA.SampleFrom(ref densities);
+                    var densityB = pointB.SampleFrom(ref densities);
+                    var interpFactor = (DENSITY_THRESHOLD - densityA) / (densityB - densityA);
 
-                    var cornerPosA = cellPos + DensityCube.CornerPosition(cornerA);
-                    var cornerPosB = cellPos + DensityCube.CornerPosition(cornerB);
+                    var cornerPosA = pointA.LocalPosition();
+                    var cornerPosB = pointB.LocalPosition();
 
-                    var interpFactor = (_surfaceLevel - densityA) / (densityB - densityA);
-                    triangle[j] = cornerPosA + (cornerPosB - cornerPosA) * interpFactor;
+                    vertices[j] = cornerPosA + (cornerPosB - cornerPosA) * interpFactor;
+
+                    var depthA = 1f / 16f * Mathf.Min(16, (0xff & pointA.SampleFrom(ref depths)));
+                    var depthB = 1f / 16f * Mathf.Min(16, (0xff & pointB.SampleFrom(ref depths)));
+                    float gray = 1.0f - ((1.0f - interpFactor) * depthA + interpFactor * depthB);
+                    colors[j] = new Color(gray, gray, gray);
                 }
 
-                // Compute the normals of the triangle
-                var crossA = triangle[0];
-                var crossB = triangle[1];
-                var crossC = triangle[2];
-                var normal = (crossC - crossB).Cross(crossC - crossA).Normalized();
-
-                for (var j = 0; j < 3; j++)
-                    geometry.Append(triangle[j], normal, color);
+                triangles.Add(new Triangle(
+                    vertices[0], vertices[1], vertices[2],
+                    colors[0], colors[1], colors[2]
+                ));
             }
         }
-
-        return densitySum;
     }
-
-    //private static readonly Color 
-        //RED   = new Color(1, 0, 0), 
-        //BLACK = new Color(0, 0, 0);
-
-    //private float LookupDensity(BlockCoord neighbourCell)
-    //{
-    //    float cornerDensity;
-    //    if (IsInside(neighbourCell))
-    //        cornerDensity = density[neighbourCell.y * VOXELS_PLANE + neighbourCell.z * VOXELS_ROW + neighbourCell.x];
-    //    else
-    //    {
-    //        var neighbourBlock = new BlockCoord(coordinate.x, coordinate.y, coordinate.z);
-    //        NeighbourCoordinates(ref neighbourBlock, ref neighbourCell);
-    //        cornerDensity = manager.GetDensity(neighbourBlock, neighbourCell);
-    //    }
-
-    //    return cornerDensity;
-    //}
-
-    //private bool IsInside(BlockCoord cell)
-    //{
-    //    return cell.x >= 0 && cell.x < VOXELS_ROW
-    //                       && cell.y >= 0 && cell.y < VOXELS_ROW
-    //                       && cell.z >= 0 && cell.z < VOXELS_ROW;
-    //}
-
-    //private Vector3 WorldPositionOf(int cellIdx)
-    //{
-    //    return Translation + LocalPositionOf(cellIdx);
-    //}
-
-    //private static Vector3 LocalPositionOf(int cellIdx)
-    //{
-    //    return new Vector3(
-    //        cellIdx % VOXELS_ROW,
-    //        cellIdx / VOXELS_PLANE % VOXELS_ROW,
-    //        cellIdx / VOXELS_ROW % VOXELS_ROW
-    //    );
-    //}
-
-    //private static BlockCoord LocalCoordinateOf(int cellIdx)
-    //{
-    //    return new BlockCoord(
-    //        cellIdx % VOXELS_ROW,
-    //        cellIdx / VOXELS_PLANE % VOXELS_ROW,
-    //        cellIdx / VOXELS_ROW % VOXELS_ROW
-    //    );
-    //}
-
-    //private static void NeighbourCoordinates(ref BlockCoord neighbourBlock, ref BlockCoord neighbourCell)
-    //{
-    //    if (neighbourCell.x < 0)
-    //    {
-    //        neighbourBlock.x--;
-    //        neighbourCell.x = VOXELS_ROW - 1;
-    //    }
-    //    else if (neighbourCell.x >= VOXELS_ROW)
-    //    {
-    //        neighbourBlock.x++;
-    //        neighbourCell.x = 0;
-    //    }
-
-    //    if (neighbourCell.y < 0)
-    //    {
-    //        neighbourBlock.y--;
-    //        neighbourCell.y = VOXELS_ROW - 1;
-    //    }
-    //    else if (neighbourCell.y >= VOXELS_ROW)
-    //    {
-    //        neighbourBlock.y++;
-    //        neighbourCell.y = 0;
-    //    }
-
-    //    if (neighbourCell.z < 0)
-    //    {
-    //        neighbourBlock.z--;
-    //        neighbourCell.z = VOXELS_ROW - 1;
-    //    }
-    //    else if (neighbourCell.z >= VOXELS_ROW)
-    //    {
-    //        neighbourBlock.z++;
-    //        neighbourCell.z = 0;
-    //    }
-    //}
-
-    //private static readonly BlockCoord[] CUBE_CORNERS =
-    //{
-    //    new BlockCoord(-1, -1, -1),
-    //    new BlockCoord(1, -1, -1),
-    //    new BlockCoord(1, -1, 1),
-    //    new BlockCoord(-1, -1, 1),
-    //    new BlockCoord(-1, 1, -1),
-    //    new BlockCoord(1, 1, -1),
-    //    new BlockCoord(1, 1, 1),
-    //    new BlockCoord(-1, 1, 1)
-    //};
-    
-    //private static readonly Vector3[] CUBE_CORNER_POSITIONS =
-    //{
-    //    new Vector3(-.5f, -.5f, -.5f),
-    //    new Vector3(.5f, -.5f, -.5f),
-    //    new Vector3(.5f, -.5f, .5f),
-    //    new Vector3(-.5f, -.5f, .5f),
-    //    new Vector3(-.5f, .5f, -.5f),
-    //    new Vector3(.5f, .5f, -.5f),
-    //    new Vector3(.5f, .5f, .5f),
-    //    new Vector3(-.5f, .5f, .5f)
-    //};
 
     private static readonly int[] CORNER_INDEX_A_FROM_EDGE = { 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3 };
     private static readonly int[] CORNER_INDEX_B_FROM_EDGE = { 1, 2, 3, 0, 5, 6, 7, 4, 4, 5, 6, 7 };
-
     private static readonly byte[][] TRIANGLE_TABLE =
     {
         new byte[] { },
