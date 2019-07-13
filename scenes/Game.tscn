@@ -32,24 +32,24 @@ void fragment() {
 	}
 }"
 
-[sub_resource type="Gradient" id=3]
+[sub_resource type="Gradient" id=2]
 offsets = PoolRealArray( 0.00684932, 0.664384, 0.773973, 1 )
 colors = PoolColorArray( 0.304688, 0.223067, 0.169006, 1, 0.558594, 0.482462, 0.432037, 1, 0.48993, 0.621094, 0.20137, 1, 0.552914, 0.753906, 0.259155, 1 )
 
-[sub_resource type="GradientTexture" id=4]
-gradient = SubResource( 3 )
+[sub_resource type="GradientTexture" id=3]
+gradient = SubResource( 2 )
 width = 512
 
-[sub_resource type="ShaderMaterial" id=2]
+[sub_resource type="ShaderMaterial" id=4]
 shader = SubResource( 1 )
-shader_param/steepnessTexture = SubResource( 4 )
+shader_param/steepnessTexture = SubResource( 3 )
 
 [node name="Game" type="Spatial"]
 
 [node name="VoxelTerrain" type="Spatial" parent="."]
 script = ExtResource( 1 )
 densityGeneratorPath = NodePath("DensityGenerator")
-material = SubResource( 2 )
+material = SubResource( 4 )
 observerPath = NodePath("../Player")
 debugLabelPath = NodePath("../Debug")
 

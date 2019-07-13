@@ -86,7 +86,7 @@ public class VoxelTerrain : Spatial
         }
 
         var origoChunk = chunks[new ChunkPosition(0, 0, 0)];
-        origoChunk.UpdateLuminance();
+        origoChunk.GetLuminance().Init();
         origoChunk.ForEachChunk(chunk => chunk.TriangulateChunk());
 
         SetPhysicsProcess(true);
@@ -163,7 +163,6 @@ public class VoxelTerrain : Spatial
             }
         }
 
-
         if (Input.IsMouseButtonPressed((int)ButtonList.Left)
         || Input.IsMouseButtonPressed((int)ButtonList.Right))
         {
@@ -182,7 +181,7 @@ public class VoxelTerrain : Spatial
         {
             if (chunk != null)
             {
-                chunk.UpdateLuminance();
+                chunk.GetLuminance().Init();
                 chunk.ForEachChunk(c => c.TriangulateChunk());
             }
         }

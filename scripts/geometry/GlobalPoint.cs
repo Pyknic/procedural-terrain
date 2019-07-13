@@ -26,7 +26,7 @@
 
     public byte GetDepth()
     {
-        return chunk.GetDepth(point);
+        return chunk.GetLuminance().GetDepth(point);
     }
 
     public bool IsMaxDepth()
@@ -38,6 +38,11 @@
     public float GetDensity()
     {
         return chunk.GetDensity(point);
+    }
+
+    public bool IsSolid()
+    {
+        return GetDensity() > MarchingCubes.DENSITY_THRESHOLD;
     }
 
     /// <summary>
@@ -168,7 +173,7 @@
         const int BELOW_SOUTH_MASK = BELOW_MASK | SOUTH_MASK;
         const int ABOVE_SOUTH_MASK = ABOVE_MASK | SOUTH_MASK;
 
-        chunk.SetDepth(point, value);
+        chunk.GetLuminance().SetDepth(point, value);
 
         int neighbourMask = point.NeighbourMask();
         if (neighbourMask == SELF_MASK)
@@ -176,60 +181,57 @@
 
         if ((neighbourMask & WEST_MASK) != 0)
         {
-            var neighbour = chunk.GetNeighbour(Direction.WEST);
+            var neighbour = chunk.GetNeighbour(Direction.WEST)?.GetLuminance();
             if (neighbour != null)
                 neighbour.SetDepth(new Point(Point.LAST, point.y, point.z), value);
 
-            //const int SELF_WEST_MASK = SELF_MASK | WEST_MASK;
-            //if (neighbourMask == SELF_WEST_MASK) return;
-
             if ((neighbourMask & NORTH_MASK) != 0)
             {
-                neighbour = chunk.GetNeighbour(Direction.WEST, Direction.NORTH);
+                neighbour = chunk.GetNeighbour(Direction.WEST, Direction.NORTH)?.GetLuminance();
                 if (neighbour != null)
                     neighbour.SetDepth(new Point(Point.LAST, point.y, Point.LAST), value);
             } 
             else if ((neighbourMask & SOUTH_MASK) != 0)
             {
-                neighbour = chunk.GetNeighbour(Direction.WEST, Direction.SOUTH);
+                neighbour = chunk.GetNeighbour(Direction.WEST, Direction.SOUTH)?.GetLuminance();
                 if (neighbour != null)
                     neighbour.SetDepth(new Point(Point.LAST, point.y, Point.FIRST), value);
             }
 
             if ((neighbourMask & BELOW_MASK) != 0)
             {
-                neighbour = chunk.GetNeighbour(Direction.WEST, Direction.BELOW);
+                neighbour = chunk.GetNeighbour(Direction.WEST, Direction.BELOW)?.GetLuminance();
                 if (neighbour != null)
                     neighbour.SetDepth(new Point(Point.LAST, Point.LAST, point.z), value);
             }
             else if ((neighbourMask & ABOVE_MASK) != 0)
             {
-                neighbour = chunk.GetNeighbour(Direction.WEST, Direction.ABOVE);
+                neighbour = chunk.GetNeighbour(Direction.WEST, Direction.ABOVE)?.GetLuminance();
                 if (neighbour != null)
                     neighbour.SetDepth(new Point(Point.LAST, Point.FIRST, point.z), value);
             }
 
             if ((neighbourMask & BELOW_NORTH_MASK) != 0)
             {
-                neighbour = chunk.GetNeighbour(Direction.WEST, Direction.BELOW, Direction.NORTH);
+                neighbour = chunk.GetNeighbour(Direction.WEST, Direction.BELOW, Direction.NORTH)?.GetLuminance();
                 if (neighbour != null)
                     neighbour.SetDepth(new Point(Point.LAST, Point.LAST, Point.LAST), value);
             }
             else if ((neighbourMask & ABOVE_NORTH_MASK) != 0)
             {
-                neighbour = chunk.GetNeighbour(Direction.WEST, Direction.ABOVE, Direction.NORTH);
+                neighbour = chunk.GetNeighbour(Direction.WEST, Direction.ABOVE, Direction.NORTH)?.GetLuminance();
                 if (neighbour != null)
                     neighbour.SetDepth(new Point(Point.LAST, Point.FIRST, Point.LAST), value);
             }
             else if ((neighbourMask & BELOW_SOUTH_MASK) != 0)
             {
-                neighbour = chunk.GetNeighbour(Direction.WEST, Direction.BELOW, Direction.SOUTH);
+                neighbour = chunk.GetNeighbour(Direction.WEST, Direction.BELOW, Direction.SOUTH)?.GetLuminance();
                 if (neighbour != null)
                     neighbour.SetDepth(new Point(Point.LAST, Point.LAST, Point.FIRST), value);
             }
             else if ((neighbourMask & ABOVE_SOUTH_MASK) != 0)
             {
-                neighbour = chunk.GetNeighbour(Direction.WEST, Direction.ABOVE, Direction.SOUTH);
+                neighbour = chunk.GetNeighbour(Direction.WEST, Direction.ABOVE, Direction.SOUTH)?.GetLuminance();
                 if (neighbour != null)
                     neighbour.SetDepth(new Point(Point.LAST, Point.FIRST, Point.FIRST), value);
             }
@@ -237,60 +239,57 @@
 
         if ((neighbourMask & EAST_MASK) != 0)
         {
-            var neighbour = chunk.GetNeighbour(Direction.EAST);
+            var neighbour = chunk.GetNeighbour(Direction.EAST)?.GetLuminance();
             if (neighbour != null)
                 neighbour.SetDepth(new Point(Point.FIRST, point.y, point.z), value);
 
-            //const int SELF_EAST_MASK = SELF_MASK | EAST_MASK;
-           // if (neighbourMask == SELF_EAST_MASK) return;
-
             if ((neighbourMask & NORTH_MASK) != 0)
             {
-                neighbour = chunk.GetNeighbour(Direction.EAST, Direction.NORTH);
+                neighbour = chunk.GetNeighbour(Direction.EAST, Direction.NORTH)?.GetLuminance();
                 if (neighbour != null)
                     neighbour.SetDepth(new Point(Point.FIRST, point.y, Point.LAST), value);
             }
             else if ((neighbourMask & SOUTH_MASK) != 0)
             {
-                neighbour = chunk.GetNeighbour(Direction.EAST, Direction.SOUTH);
+                neighbour = chunk.GetNeighbour(Direction.EAST, Direction.SOUTH)?.GetLuminance();
                 if (neighbour != null)
                     neighbour.SetDepth(new Point(Point.FIRST, point.y, Point.FIRST), value);
             }
 
             if ((neighbourMask & BELOW_MASK) != 0)
             {
-                neighbour = chunk.GetNeighbour(Direction.EAST, Direction.BELOW);
+                neighbour = chunk.GetNeighbour(Direction.EAST, Direction.BELOW)?.GetLuminance();
                 if (neighbour != null)
                     neighbour.SetDepth(new Point(Point.FIRST, Point.LAST, point.z), value);
             }
             else if ((neighbourMask & ABOVE_MASK) != 0)
             {
-                neighbour = chunk.GetNeighbour(Direction.EAST, Direction.ABOVE);
+                neighbour = chunk.GetNeighbour(Direction.EAST, Direction.ABOVE)?.GetLuminance();
                 if (neighbour != null)
                     neighbour.SetDepth(new Point(Point.FIRST, Point.FIRST, point.z), value);
             }
 
             if ((neighbourMask & BELOW_NORTH_MASK) != 0)
             {
-                neighbour = chunk.GetNeighbour(Direction.EAST, Direction.BELOW, Direction.NORTH);
+                neighbour = chunk.GetNeighbour(Direction.EAST, Direction.BELOW, Direction.NORTH)?.GetLuminance();
                 if (neighbour != null)
                     neighbour.SetDepth(new Point(Point.FIRST, Point.LAST, Point.LAST), value);
             }
             else if ((neighbourMask & ABOVE_NORTH_MASK) != 0)
             {
-                neighbour = chunk.GetNeighbour(Direction.EAST, Direction.ABOVE, Direction.NORTH);
+                neighbour = chunk.GetNeighbour(Direction.EAST, Direction.ABOVE, Direction.NORTH)?.GetLuminance();
                 if (neighbour != null)
                     neighbour.SetDepth(new Point(Point.FIRST, Point.FIRST, Point.LAST), value);
             }
             else if ((neighbourMask & BELOW_SOUTH_MASK) != 0)
             {
-                neighbour = chunk.GetNeighbour(Direction.EAST, Direction.BELOW, Direction.SOUTH);
+                neighbour = chunk.GetNeighbour(Direction.EAST, Direction.BELOW, Direction.SOUTH)?.GetLuminance();
                 if (neighbour != null)
                     neighbour.SetDepth(new Point(Point.FIRST, Point.LAST, Point.FIRST), value);
             }
             else if ((neighbourMask & ABOVE_SOUTH_MASK) != 0)
             {
-                neighbour = chunk.GetNeighbour(Direction.EAST, Direction.ABOVE, Direction.SOUTH);
+                neighbour = chunk.GetNeighbour(Direction.EAST, Direction.ABOVE, Direction.SOUTH)?.GetLuminance();
                 if (neighbour != null)
                     neighbour.SetDepth(new Point(Point.FIRST, Point.FIRST, Point.FIRST), value);
             }
@@ -298,19 +297,19 @@
 
         if ((neighbourMask & BELOW_MASK) != 0)
         {
-            var neighbour = chunk.GetNeighbour(Direction.BELOW);
+            var neighbour = chunk.GetNeighbour(Direction.BELOW)?.GetLuminance();
             if (neighbour != null)
                 neighbour.SetDepth(new Point(point.x, Point.LAST, point.z), value);
 
             if ((neighbourMask & NORTH_MASK) != 0)
             {
-                neighbour = chunk.GetNeighbour(Direction.BELOW, Direction.NORTH);
+                neighbour = chunk.GetNeighbour(Direction.BELOW, Direction.NORTH)?.GetLuminance();
                 if (neighbour != null)
                     neighbour.SetDepth(new Point(point.x, Point.LAST, Point.LAST), value);
             }
             else if ((neighbourMask & SOUTH_MASK) != 0)
             {
-                neighbour = chunk.GetNeighbour(Direction.BELOW, Direction.SOUTH);
+                neighbour = chunk.GetNeighbour(Direction.BELOW, Direction.SOUTH)?.GetLuminance();
                 if (neighbour != null)
                     neighbour.SetDepth(new Point(point.x, Point.LAST, Point.FIRST), value);
             }
@@ -318,19 +317,19 @@
 
         if ((neighbourMask & ABOVE_MASK) != 0)
         {
-            var neighbour = chunk.GetNeighbour(Direction.ABOVE);
+            var neighbour = chunk.GetNeighbour(Direction.ABOVE)?.GetLuminance();
             if (neighbour != null)
                 neighbour.SetDepth(new Point(point.x, Point.FIRST, point.z), value);
 
             if ((neighbourMask & NORTH_MASK) != 0)
             {
-                neighbour = chunk.GetNeighbour(Direction.ABOVE, Direction.NORTH);
+                neighbour = chunk.GetNeighbour(Direction.ABOVE, Direction.NORTH)?.GetLuminance();
                 if (neighbour != null)
                     neighbour.SetDepth(new Point(point.x, Point.FIRST, Point.LAST), value);
             }
             else if ((neighbourMask & SOUTH_MASK) != 0)
             {
-                neighbour = chunk.GetNeighbour(Direction.ABOVE, Direction.SOUTH);
+                neighbour = chunk.GetNeighbour(Direction.ABOVE, Direction.SOUTH)?.GetLuminance();
                 if (neighbour != null)
                     neighbour.SetDepth(new Point(point.x, Point.FIRST, Point.FIRST), value);
             }
@@ -338,14 +337,14 @@
 
         if ((neighbourMask & NORTH_MASK) != 0)
         {
-            var neighbour = chunk.GetNeighbour(Direction.NORTH);
+            var neighbour = chunk.GetNeighbour(Direction.NORTH)?.GetLuminance();
             if (neighbour != null)
                 neighbour.SetDepth(new Point(point.x, point.y, Point.LAST), value);
         }
 
         if ((neighbourMask & SOUTH_MASK) != 0)
         {
-            var neighbour = chunk.GetNeighbour(Direction.SOUTH);
+            var neighbour = chunk.GetNeighbour(Direction.SOUTH)?.GetLuminance();
             if (neighbour != null)
                 neighbour.SetDepth(new Point(point.x, point.y, Point.FIRST), value);
         }

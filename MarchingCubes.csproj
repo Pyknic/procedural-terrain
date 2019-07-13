@@ -61,6 +61,7 @@
     <Compile Include="scripts\Chunk.cs" />
     <Compile Include="scripts\VoxelTerrain.cs" />
     <Compile Include="scripts\ChunkInstance.cs" />
+    <Compile Include="scripts\geometry\Luminance.cs" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="scripts\geometry\" />

@@ -10,7 +10,12 @@ render_mode unshaded;
 
 varying float z;
 void vertex() {
-	z = pow((VERTEX.z + 4.0) / 8.0, 2.0);
+	float x = pow((VERTEX.z + 4.0) / 8.0, 2.0);
+	if (OUTPUT_IS_SRGB) {
+		z = x;
+    } else {
+		z = pow(x, 2.2);
+	}
 }
 
 void fragment() {

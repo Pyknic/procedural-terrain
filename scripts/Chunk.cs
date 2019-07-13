@@ -7,8 +7,7 @@ public class Chunk
     private readonly ChunkPosition position;
     private Chunk[] neighbours;
     private float[] densities;
-    private byte[] depths;
-    private long bottomDaylightMask;
+    private Luminance luminance;
     private IList<Triangle> triangles;
     private Action<IList<Triangle>> listener;
 
@@ -17,7 +16,7 @@ public class Chunk
         position   = pos;
         neighbours = new Chunk[6];
         densities  = new float[Point.CUBE_SIZE];
-        depths     = new byte[Point.CUBE_SIZE];
+        luminance  = new Luminance(this);
         triangles  = new List<Triangle>();
     }
 
@@ -112,13 +111,16 @@ public class Chunk
         var queue   = new Queue<Chunk>();
         var visited = new Dictionary<ChunkPosition, Chunk>();
 
+        // Keep track of points where the solidity flipped.
+        var flippedPoints = new HashSet<GlobalPoint>();
+
         queue.Enqueue(this);
         visited.Add(position, this);
 
         while (queue.Count > 0)
         {
             var current = queue.Dequeue();
-            var neighbourMask = current.EditDensityLocally(editor);
+            var neighbourMask = current.EditDensityLocally(editor, ref flippedPoints);
 
             for (int n = 0; n < 6; n++)
             {
@@ -137,9 +139,13 @@ public class Chunk
                 }
             }
         }
+
+        // Update the luminance in affected points
+        if (flippedPoints.Count >= 1)
+            luminance.UpdateAt(ref flippedPoints);
     }
 
-    private int EditDensityLocally(Func<Vector3, float, float> editor)
+    private int EditDensityLocally(Func<Vector3, float, float> editor, ref HashSet<GlobalPoint> flippedPoints)
     {
         const float EDIT_THRESHOLD = 0.001f;
         var chunkPos = position.WorldPosition();
@@ -158,6 +164,12 @@ public class Chunk
                 densities[i] = newDensity;
                 neighbourMask |= point.NeighbourMask();
             }
+
+            if ((oldDensity >= MarchingCubes.DENSITY_THRESHOLD
+            &&   newDensity < MarchingCubes.DENSITY_THRESHOLD)
+            ||  (oldDensity < MarchingCubes.DENSITY_THRESHOLD
+            &&   newDensity >= MarchingCubes.DENSITY_THRESHOLD))
+                flippedPoints.Add(new GlobalPoint(this, point));
         }
 
         if (neighbourMask != 0)
@@ -169,133 +181,240 @@ public class Chunk
     public void TriangulateChunk()
     {
         triangles.Clear();
-        MarchingCubes.Triangulate(ref densities, ref depths, ref triangles);
+        MarchingCubes.Triangulate(
+            ref densities,
+            ref luminance.GetDepths(), 
+            ref triangles);
         listener?.Invoke(triangles);
     }
 
-    public byte GetDepth(Point point)
+    public Luminance GetLuminance()
     {
-        return depths[point.index];
+        return luminance;
     }
 
-    public void SetDepth(Point point, byte depth)
-    {
-        depths[point.index] = depth;
-    }
+    //public byte GetDepth(Point point)
+    //{
+    //    return depths[point.index];
+    //}
 
-    public void UpdateLuminance()
-    {
-        UpdateLuminance(this);
-    }
+    //public void SetDepth(Point point, byte depth)
+    //{
+    //    depths[point.index] = depth;
+    //}
 
-    private static void UpdateLuminance(Chunk firstChunk)
-    {
-        // Reset the depth value in each chunk in the graph to 0xff.
-        // Also enqueue all chunks without any chunk above them and use these as
-        // the base for the daylight check.
-        var daylightQueue = new Queue<Chunk>();
+    //public void ResetDepth(byte depth)
+    //{
+    //    for (int i = 0; i < Point.CUBE_SIZE; i++)
+    //        depths[i] = depth;
+    //}
 
-        const byte MAX_DEPTH = 0xff;
-        const byte NO_DEPTH  = 0x00;
+    //public void UpdateLuminance()
+    //{
+    //    UpdateLuminance(this);
+    //}
 
-        firstChunk.ForEachChunk(chunk => {
-            for (int i = 0; i < Point.CUBE_SIZE; i++)
-                chunk.depths[i] = MAX_DEPTH;
+    //private struct GlobalPointUpdate
+    //{
+    //    public readonly GlobalPoint point;
+    //    public readonly int newValue;
 
-            if (!chunk.HasNeighbour(Direction.ABOVE))
-                daylightQueue.Enqueue(chunk);
-        });
+    //    public GlobalPointUpdate(GlobalPoint point, int newValue)
+    //    {
+    //        this.point    = point;
+    //        this.newValue = newValue;
+    //    }
+    //}
 
-        var globalPoints = new Queue<GlobalPoint>();
+    //private void UpdateLuminanceAt(Point at)
+    //{
+    //    var queue = new Queue<GlobalPoint>();
+    //    queue.Enqueue(new GlobalPoint(this, at));
 
-        // Process the queue of chunks that have been hit by daylight by setting 
-        // the depth of all points without anything above them to 0. Continue
-        // by queueing up all chunks below until solid density is encountered.
-        while (daylightQueue.Count > 0)
-        {
-            var current = daylightQueue.Dequeue();
-            var above = current.GetNeighbour(Direction.ABOVE);
-            long daylightMaskAbove = above == null ? -1L : above.bottomDaylightMask;
+    //    while (queue.Count > 0)
+    //    {
 
-            current.bottomDaylightMask = 0L;
+    //    }
+    //}
 
-            for (int i = 0; i < Point.PLANE_SIZE; i++)
-            {
-                var bit = 0x1L << i;
-                if ((daylightMaskAbove & bit) != 0)
-                {
-                    for (int j = Point.ROW_SIZE - 1; j >= 0; j--)
-                    {
-                        var point = new Point(i % Point.ROW_SIZE, j, i / Point.ROW_SIZE);
-                        var density = point.SampleFrom(ref current.densities);
+    //private void UpdateLuminanceAt(Point at)
+    //{
+    //    var point = new GlobalPoint(this, at);
 
-                        var globalPoint = new GlobalPoint(current, point);
+    //    // Determine the minimum depth of any neighbour.
+    //    int minDepth = 0xff;
+    //    for (int n = 0; n < 6; n++)
+    //    {
+    //        var dir = (Direction)n;
+    //        var neighbour = point.Step(dir);
+    //        if (neighbour == null)
+    //        {
+    //            if (dir == Direction.ABOVE)
+    //            {
+    //                minDepth = 0;
+    //                break;
+    //            }
+    //        }
+    //        else
+    //        {
+    //            var neighbourDepth = 0xff & neighbour.GetDepth();
+    //            if (neighbourDepth < minDepth)
+    //            {
+    //                minDepth = neighbourDepth;
+    //                if (minDepth == 0) break;
+    //            }
+    //        }
+    //    }
+
+    //    //if (minDepth == 0xff)
+    //    //{
+    //    //    point.SetDepth(0xff);
+    //    //    return;
+    //    //}
+
+    //    var queue = new Queue<GlobalPointUpdate>();
+    //    queue.Enqueue(new GlobalPointUpdate(
+    //        new GlobalPoint(this, at), 
+    //        minDepth == 0xff ? 0xff : minDepth + 1));
+
+    //    while (queue.Count > 0)
+    //    {
+    //        var current = queue.Dequeue();
+    //        var oldValue = current.point.GetDepth();
+    //        current.point.SetDepth((byte)current.newValue);
+
+    //        if (!current.point.IsSolid())
+    //        {
+
+    //        }
+    //    }
+
+    //    point.SetDepth((byte)(minDepth + 1));
+    //    if (point.IsSolid()) return;
+
+    //    for (int n = 0; n < 6; n++)
+    //    {
+    //        var dir = (Direction)n;
+    //        var neighbour = point.Step(dir);
+    //        if (neighbour != null) {
+    //            var neighbourDepth = 0xff & neighbour.GetDepth();
+    //            if (neighbourDepth == minDepth + 1)
+    //            {
+    //                minDepth = neighbourDepth;
+    //                if (minDepth == 0) break;
+    //            }
+    //        }
+    //    }
+    //}
+
+    //private static void UpdateLuminance(Chunk firstChunk)
+    //{
+    //    // Reset the depth value in each chunk in the graph to 0xff.
+    //    // Also enqueue all chunks without any chunk above them and use these as
+    //    // the base for the daylight check.
+    //    var daylightQueue = new Queue<Chunk>();
+
+    //    const byte MAX_DEPTH = 0xff;
+    //    const byte NO_DEPTH  = 0x00;
+
+    //    firstChunk.ForEachChunk(chunk => {
+    //        for (int i = 0; i < Point.CUBE_SIZE; i++)
+    //            chunk.depths[i] = MAX_DEPTH;
+
+    //        if (!chunk.HasNeighbour(Direction.ABOVE))
+    //            daylightQueue.Enqueue(chunk);
+    //    });
+
+    //    var globalPoints = new Queue<GlobalPoint>();
+
+    //    // Process the queue of chunks that have been hit by daylight by setting 
+    //    // the depth of all points without anything above them to 0. Continue
+    //    // by queueing up all chunks below until solid density is encountered.
+    //    while (daylightQueue.Count > 0)
+    //    {
+    //        var current = daylightQueue.Dequeue();
+    //        var above = current.GetNeighbour(Direction.ABOVE);
+    //        long daylightMaskAbove = above == null ? -1L : above.bottomDaylightMask;
+
+    //        current.bottomDaylightMask = 0L;
+
+    //        for (int i = 0; i < Point.PLANE_SIZE; i++)
+    //        {
+    //            var bit = 0x1L << i;
+    //            if ((daylightMaskAbove & bit) != 0)
+    //            {
+    //                for (int j = Point.ROW_SIZE - 1; j >= 0; j--)
+    //                {
+    //                    var point = new Point(i % Point.ROW_SIZE, j, i / Point.ROW_SIZE);
+    //                    var density = point.SampleFrom(ref current.densities);
+
+    //                    var globalPoint = new GlobalPoint(current, point);
 
 
-                        if (density <= MarchingCubes.DENSITY_THRESHOLD)
-                        {
-                            globalPoint.SetDepth(NO_DEPTH);
-                            globalPoints.Enqueue(globalPoint);
-                        }
-                        else
-                        {
-                            globalPoint.SetDepth(0x1);
-                            break;
-                        }
-                    }
-                }
+    //                    if (density <= MarchingCubes.DENSITY_THRESHOLD)
+    //                    {
+    //                        globalPoint.SetDepth(NO_DEPTH);
+    //                        globalPoints.Enqueue(globalPoint);
+    //                    }
+    //                    else
+    //                    {
+    //                        globalPoint.SetDepth(0x1);
+    //                        break;
+    //                    }
+    //                }
+    //            }
 
-                // If we hit the bottom of this chunk with daylight, mark it in
-                // the bitset
-                if (current.depths[i] == NO_DEPTH)
-                    current.bottomDaylightMask |= bit;
-            }
+    //            // If we hit the bottom of this chunk with daylight, mark it in
+    //            // the bitset
+    //            if (current.depths[i] == NO_DEPTH)
+    //                current.bottomDaylightMask |= bit;
+    //        }
 
-            // If at least one point of daylight reached the bottom layer, 
-            // enqueue the chunk below this one
-            if (current.bottomDaylightMask != 0L)
-            {
-                var below = current.GetNeighbour(Direction.BELOW);
-                if (below != null) daylightQueue.Enqueue(below);
-            }
-        }
+    //        // If at least one point of daylight reached the bottom layer, 
+    //        // enqueue the chunk below this one
+    //        if (current.bottomDaylightMask != 0L)
+    //        {
+    //            var below = current.GetNeighbour(Direction.BELOW);
+    //            if (below != null) daylightQueue.Enqueue(below);
+    //        }
+    //    }
 
-        // We now have a queue of all the points in the world that are located 
-        // directly under the sun. Process them in breadth-first order, setting 
-        // the depth of every additional point visited to the depth of the 
-        // previously visited point + 1.
-        while (globalPoints.Count > 0)
-        {
-            var point = globalPoints.Dequeue();
-            var d = point.GetDepth();
+    //    // We now have a queue of all the points in the world that are located 
+    //    // directly under the sun. Process them in breadth-first order, setting 
+    //    // the depth of every additional point visited to the depth of the 
+    //    // previously visited point + 1.
+    //    while (globalPoints.Count > 0)
+    //    {
+    //        var point = globalPoints.Dequeue();
+    //        var d = point.GetDepth();
 
-            if ((d & 0xff) < 0xff)
-            {
-                for (int n = 0; n < 6; n++)
-                {
-                    var direction = (Direction)n;
-                    var nextPoint = point.Step(direction);
-                    if (nextPoint != null)
-                    {
-                        if (nextPoint.IsMaxDepth())
-                        {
-                            nextPoint.SetDepth((byte) ((0xff & d) + 1));
-                            if (nextPoint.GetDensity() <= MarchingCubes.DENSITY_THRESHOLD)
-                            {
-                                globalPoints.Enqueue(nextPoint);
-                            }
-                        }
-                    }
-                }
-            }
-            else break;
-        }
+    //        if ((d & 0xff) < 0xff)
+    //        {
+    //            for (int n = 0; n < 6; n++)
+    //            {
+    //                var direction = (Direction)n;
+    //                var nextPoint = point.Step(direction);
+    //                if (nextPoint != null)
+    //                {
+    //                    if (nextPoint.IsMaxDepth())
+    //                    {
+    //                        nextPoint.SetDepth((byte) ((0xff & d) + 1));
+    //                        if (nextPoint.GetDensity() <= MarchingCubes.DENSITY_THRESHOLD)
+    //                        {
+    //                            globalPoints.Enqueue(nextPoint);
+    //                        }
+    //                    }
+    //                }
+    //            }
+    //        }
+    //        else break;
+    //    }
 
-        // Since the depth values have changed, perform a new triangulation of 
-        // the entire world. TODO We should keep track of which chunks was 
-        // actually affected by the change and only triangulate those.
-        //firstChunk.ForEachChunk(chunk => chunk.TriangulateChunk());
-    }
+    //    // Since the depth values have changed, perform a new triangulation of 
+    //    // the entire world. TODO We should keep track of which chunks was 
+    //    // actually affected by the change and only triangulate those.
+    //    //firstChunk.ForEachChunk(chunk => chunk.TriangulateChunk());
+    //}
 
     public void ForEachChunk(Action<Chunk> action)
     {
